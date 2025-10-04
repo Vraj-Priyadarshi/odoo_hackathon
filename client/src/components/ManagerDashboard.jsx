@@ -1,25 +1,72 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-
+import '../styles/ManagerDashboard.css';
 export default function ManagerDashboard() {
-  const [pending, setPending] = useState([]);
-  const [processed, setProcessed] = useState([]);
+  // Dummy data for testing
+  const dummyPending = [
+    {
+      id: 1,
+      amount: 150,
+      currency: "USD",
+      category: "Travel",
+      description: "Taxi fare",
+      date: "2025-10-01",
+    },
+    {
+      id: 2,
+      amount: 300,
+      currency: "USD",
+      category: "Food",
+      description: "Team lunch",
+      date: "2025-10-02",
+    },
+  ];
+
+  const dummyProcessed = [
+    {
+      id: 3,
+      amount: 200,
+      currency: "USD",
+      category: "Supplies",
+      description: "Office stationery",
+      date: "2025-09-28",
+      status: "Approved",
+      comments: "Looks good",
+    },
+    {
+      id: 4,
+      amount: 120,
+      currency: "USD",
+      category: "Travel",
+      description: "Uber",
+      date: "2025-09-30",
+      status: "Rejected",
+      comments: "Exceeds limit",
+    },
+  ];
+
+  const [pending, setPending] = useState(dummyPending);
+  const [processed, setProcessed] = useState(dummyProcessed);
 
   const fetchPending = async () => {
     try {
       const res = await axios.get("/api/expenses/pending");
-      setPending(Array.isArray(res.data) ? res.data : []);
+      setPending(Array.isArray(res.data) ? res.data : dummyPending);
     } catch (err) {
       console.error(err);
+      // fallback to dummy data
+      setPending(dummyPending);
     }
   };
 
   const fetchProcessed = async () => {
     try {
       const res = await axios.get("/api/expenses/processed");
-      setProcessed(Array.isArray(res.data) ? res.data : []);
+      setProcessed(Array.isArray(res.data) ? res.data : dummyProcessed);
     } catch (err) {
       console.error(err);
+      // fallback to dummy data
+      setProcessed(dummyProcessed);
     }
   };
 

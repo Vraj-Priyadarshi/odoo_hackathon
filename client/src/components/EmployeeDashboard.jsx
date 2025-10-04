@@ -1,8 +1,39 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-
+import '../styles/EmployeeDashboard.css';
 export default function EmployeeDashboard() {
-  const [expenses, setExpenses] = useState([]);
+  // Dummy data for testing
+  const dummyExpenses = [
+    {
+      id: 1,
+      amount: 100,
+      currency: "USD",
+      category: "Travel",
+      description: "Taxi fare",
+      date: "2025-10-01",
+      status: "Pending",
+    },
+    {
+      id: 2,
+      amount: 250,
+      currency: "USD",
+      category: "Food",
+      description: "Team lunch",
+      date: "2025-09-28",
+      status: "Approved",
+    },
+    {
+      id: 3,
+      amount: 50,
+      currency: "USD",
+      category: "Supplies",
+      description: "Office stationery",
+      date: "2025-09-25",
+      status: "Rejected",
+    },
+  ];
+
+  const [expenses, setExpenses] = useState(dummyExpenses);
   const [formData, setFormData] = useState({
     amount: "",
     currency: "",
@@ -14,9 +45,11 @@ export default function EmployeeDashboard() {
   const fetchExpenses = async () => {
     try {
       const res = await axios.get("/api/expenses/user/me");
-      setExpenses(res.data.expenses || []);
+      setExpenses(Array.isArray(res.data) ? res.data : dummyExpenses);
     } catch (err) {
       console.error(err);
+      // fallback to dummy data
+      setExpenses(dummyExpenses);
     }
   };
 
@@ -25,12 +58,16 @@ export default function EmployeeDashboard() {
   }, []);
 
   const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Frontend-only temporary addition with static status
+      const newExpense = { ...formData, id: Date.now(), status: "Pending" };
+      setExpenses([newExpense, ...expenses]);
+
       await axios.post("/api/expenses", formData);
       alert("Expense submitted successfully!");
       setFormData({ amount: "", currency: "", category: "", description: "", date: "" });
