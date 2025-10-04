@@ -7,6 +7,8 @@ import Secrets from "./pages/Secrets.jsx";
 import Submit from "./pages/Submit.jsx";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
+import Dashboard from "./components/DashBoard.jsx";
+
 
 export default function App() {
   return (
@@ -18,6 +20,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/secrets" element={<Secrets />} />
         <Route path="/submit" element={<Submit />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
       <Footer />
     </Router>

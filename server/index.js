@@ -20,9 +20,16 @@ app.use(
   session({
     secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    cookie: {
+      secure: false, // set true only if using HTTPS
+      httpOnly: true,
+      sameSite: "lax", // 'lax' works for dev; 'none' + secure:true for production cross-origin
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    },
   })
 );
+
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -72,43 +79,40 @@ app.get("/api/logout", (req, res) => {
   });
 });
 
-// Secrets
-app.get("/api/secrets", async (req, res) => {
-  if (req.isAuthenticated()) {
-    try {
-      const result = await db.query("SELECT secret FROM users WHERE email = $1", [req.user.email]);
-      res.json({ secret: result.rows[0]?.secret || "No secret found" });
-    } catch (err) {
-      res.status(500).json({ error: "DB error" });
-    }
-  } else {
-    res.status(401).json({ error: "Not authenticated" });
-  }
-});
 
-// Submit secret
-app.post("/api/submit", async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
-  const { secret } = req.body;
-  const email = req.user.email;
-  try {
-    await db.query("UPDATE users SET secret=$1 WHERE email=$2", [secret, email]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Register
+// app.post("/api/register", async (req, res) => {
+//   const { username, password } = req.body;
+//   try {
+//     const check = await db.query("SELECT * FROM users WHERE email=$1", [username]);
+//     if (check.rows.length > 0) return res.json({ message: "already_registered" });
+
+//     bcrypt.hash(password, saltRounds, async (err, hash) => {
+//       if (err) return res.status(500).json({ error: "Hash error" });
+//       await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [username, hash]);
+//       res.json({ message: "registered_successfully" });
+//     });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+// Register
 app.post("/api/register", async (req, res) => {
-  const { username, password } = req.body;
+  const { name, email, password, country } = req.body;
+
   try {
-    const check = await db.query("SELECT * FROM users WHERE email=$1", [username]);
+    const check = await db.query("SELECT * FROM users WHERE email=$1", [email]);
     if (check.rows.length > 0) return res.json({ message: "already_registered" });
 
     bcrypt.hash(password, saltRounds, async (err, hash) => {
       if (err) return res.status(500).json({ error: "Hash error" });
-      await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [username, hash]);
+
+      await db.query(
+        "INSERT INTO users (name, email, password, country) VALUES ($1, $2, $3, $4)",
+        [name, email, hash, country]
+      );
+
       res.json({ message: "registered_successfully" });
     });
   } catch (err) {
@@ -116,24 +120,47 @@ app.post("/api/register", async (req, res) => {
   }
 });
 
-// Login
-app.post("/api/login", passport.authenticate("local"), (req, res) => {
-  res.json({ message: "login_success" });
+
+app.post("/api/login", (req, res, next) => {
+  passport.authenticate("local", (err, user, info) => {
+    console.log("Login callback", { err, user, info });
+    if (err) return next(err);
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+    req.logIn(user, (err) => {
+      if (err) return next(err);
+      return res.json({ message: "login_success", user });
+    });
+  })(req, res, next);
 });
+
 
 // -------------------- PASSPORT LOCAL STRATEGY --------------------
 passport.use(
   "local",
-  new Strategy(async (username, password, cb) => {
+  new Strategy({ usernameField: "email", passwordField: "password" },async (email, password, cb) => {
     try {
-      const result = await db.query("SELECT * FROM users WHERE email=$1", [username]);
-      if (result.rows.length === 0) return cb(null, false);
+      console.log("🔑 Login attempt:", email);
+      const result = await db.query("SELECT * FROM users WHERE email=$1", [email]);
+      if (result.rows.length === 0) {
+        console.log("No user found");
+        return cb(null, false);
+      }
       const user = result.rows[0];
+      console.log("Stored hash:", user.password);
       bcrypt.compare(password, user.password, (err, valid) => {
         if (err) return cb(err);
-        if (valid) return cb(null, user);
-        cb(null, false);
+        if (valid) {
+          console.log("✅ Password match");
+          return cb(null, user);
+        }else{
+          console.log("❌ Password mismatch");
+          return cb(null, false);
+        }
       });
+      
+      
+      
     } catch (err) {
       cb(err);
     }
@@ -141,37 +168,37 @@ passport.use(
 );
 
 // -------------------- GOOGLE STRATEGY --------------------
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:3000/auth/google/callback",
-      userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
-    },
-    async (accessToken, refreshToken, profile, cb) => {
-      try {
-        const result = await db.query("SELECT * FROM users WHERE email=$1", [profile.email]);
-        if (result.rows.length === 0) {
-          await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [profile.email, "google"]);
-        }
-        cb(null, { email: profile.email });
-      } catch (err) {
-        cb(err);
-      }
-    }
-  )
-);
+// passport.use(
+//   new GoogleStrategy(
+//     {
+//       clientID: process.env.GOOGLE_CLIENT_ID,
+//       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+//       callbackURL: "http://localhost:3000/auth/google/callback",
+//       userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+//     },
+//     async (accessToken, refreshToken, profile, cb) => {
+//       try {
+//         const result = await db.query("SELECT * FROM users WHERE email=$1", [profile.email]);
+//         if (result.rows.length === 0) {
+//           await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [profile.email, "google"]);
+//         }
+//         cb(null, { email: profile.email });
+//       } catch (err) {
+//         cb(err);
+//       }
+//     }
+//   )
+// );
 
-app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+// app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "http://localhost:5173/login" }),
-  (req, res) => {
-    res.redirect("http://localhost:5173/secrets");
-  }
-);
+// app.get(
+//   "/auth/google/callback",
+//   passport.authenticate("google", { failureRedirect: "http://localhost:5173/login" }),
+//   (req, res) => {
+//     res.redirect("http://localhost:5173/secrets");
+//   }
+// );
 
 // -------------------- SERIALIZATION --------------------
 passport.serializeUser((user, cb) => cb(null, user));
