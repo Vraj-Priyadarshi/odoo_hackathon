@@ -69,6 +69,25 @@ app.get('/api/admin/employees', async (req, res) => {
   }
 });
 
+// Add new expense
+app.post('/api/expenses', async (req, res) => {
+  const { amount, currency, category, description, date } = req.body;
+  if (!amount || !currency || !category || !description || !date)
+    return res.status(400).json({ message: "All fields are required" });
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO expenses (amount, currency, category, description, date, employee_id, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'Pending', NOW(), NOW())
+      RETURNING *
+    `, [amount, currency, category, description, date, req.session.userId]);
+
+    res.status(201).json({ message: "Expense submitted", expense: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to submit expense", error: err.message });
+  }
+});
 
 // Fetch all managers
 app.get('/api/admin/managers', async (req, res) => {
